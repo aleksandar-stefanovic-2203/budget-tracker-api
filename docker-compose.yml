@@ -23,7 +23,7 @@ services:
       - sqlserver-data:/var/opt/mssql
 
   initialize-database:
-    image: mcr.microsoft.com/mssql-tools18:latest
+    image: mcr.microsoft.com/mssql/server:2022-latest
     depends_on:
       - database
     environment:
