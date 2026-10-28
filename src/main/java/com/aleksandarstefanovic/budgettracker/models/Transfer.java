@@ -1,21 +1,20 @@
 package com.aleksandarstefanovic.budgettracker.models;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.sql.Date;
 
 public class Transfer {
     // Fields
     private int id;
     private String type;
-    private BigDecimal amount;
-    private LocalDate date;
+    private double amount;
+    private Date date;
     private String description;
     private int categoryId;
 
     // Constructors
     public Transfer() {}
 
-    public Transfer(int id, String type, BigDecimal amount, LocalDate date, String description, int categoryId) {
+    public Transfer(int id, String type, double amount, Date date, String description, int categoryId) {
         this.id = id;
         this.type = type;
         this.amount = amount;
@@ -41,19 +40,19 @@ public class Transfer {
         this.type = type;
     }
 
-    public BigDecimal getAmount() {
+    public double getAmount() {
         return amount;
     }
 
-    public void setAmount(BigDecimal amount) {
+    public void setAmount(double amount) {
         this.amount = amount;
     }
 
-    public LocalDate getDate() {
+    public Date getDate() {
         return date;
     }
 
-    public void setDate(LocalDate date) {
+    public void setDate(Date date) {
         this.date = date;
     }
 

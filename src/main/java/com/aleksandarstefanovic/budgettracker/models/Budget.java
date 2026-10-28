@@ -1,29 +1,28 @@
 package com.aleksandarstefanovic.budgettracker.models;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.sql.Date;
 
 public class Budget {
     // Fields
-    private LocalDate month;
+    private Date month;
     private int categoryId;
-    private BigDecimal amount;
+    private double amount;
 
     // Constructors
     public Budget() {}
 
-    public Budget(LocalDate month, int categoryId, BigDecimal amount) {
+    public Budget(Date month, int categoryId, double amount) {
         this.month = month;
         this.categoryId = categoryId;
         this.amount = amount;
     }
 
     // Getters and Setters
-    public LocalDate getMonth() {
+    public Date getMonth() {
         return month;
     }
 
-    public void setMonth(LocalDate month) {
+    public void setMonth(Date month) {
         this.month = month;
     }
 
@@ -35,11 +34,11 @@ public class Budget {
         this.categoryId = categoryId;
     }
 
-    public BigDecimal getAmount() {
+    public double getAmount() {
         return amount;
     }
 
-    public void setAmount(BigDecimal amount) {
+    public void setAmount(double amount) {
         this.amount = amount;
     }
 }
