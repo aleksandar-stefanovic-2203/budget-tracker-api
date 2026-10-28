@@ -1,0 +1,31 @@
+Categories:
+    --- Insert:
+        --- 1. Successful insert
+        --- 2. Name not specified
+        --- 3. Invalid length
+        --- 4. Name already exists
+        --- 5. Color not specified
+        --- 6. Color invalid format
+        --- 7. Service unavaliable
+        --- 8. Name strip
+
+    --- Update:
+        --- 1. Successful update
+        --- 2. Name not specified
+        --- 3. Invalid length
+        --- 4. Name already exists
+        --- 5. Color not specified
+        --- 6. Color invalid format
+        --- 7. Category doesn't exist
+        --- 8. Service unavaliable
+
+    Delete:
+        --- 1. Successful delete
+        --- 2. Category doesn't exist
+        --- 3. Service unavaliable
+        4. Category referenced by transactions
+        5. Category deletes budgets
+
+    Get:
+        --- 1. Successful Get
+        --- 2. Service unavaliable

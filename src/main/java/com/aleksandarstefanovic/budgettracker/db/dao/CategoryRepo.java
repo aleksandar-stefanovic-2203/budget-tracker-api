@@ -11,20 +11,26 @@ public class CategoryRepo {
     public ErrorCode insertCategory(Category category) {
         try(Connection conn = DB.source().getConnection();
             PreparedStatement stm = conn.prepareStatement("INSERT INTO category (name, color) VALUES (?, ?)")){
-                ErrorCode errCode = Utils.isCategoryNameValid(category.getName());
-                if(errCode != ErrorCode.NO_ERRORS) return errCode;
+                if(category.getName() != null){
+                    String strippedName = category.getName().strip();
+                    category.setName(strippedName);
+                }
 
-                errCode = Utils.isColorValid(category.getColor());
-                if(errCode != ErrorCode.NO_ERRORS) return errCode;
+                ErrorCode errCode = CategoryValidator.isCategoryNameValid(category.getName());
+                if(errCode != ErrorCode.OK) return errCode;
+
+                errCode = CategoryValidator.isColorValid(category.getColor());
+                if(errCode != ErrorCode.OK) return errCode;
 
                 stm.setString(1, category.getName());
                 stm.setString(2, category.getColor());
 
                 stm.executeUpdate();
-                return ErrorCode.NO_ERRORS;
+                return ErrorCode.OK;
 
         } catch (SQLException e) {
-            e.printStackTrace(); // TODO: return error code for unique constraint
+            if(e.getErrorCode() == 2627) return ErrorCode.CATEGORY_NAME_ALREADY_EXISTS;
+
             return ErrorCode.CATEGORY_SQL_ERROR;
         }
     }
@@ -32,21 +38,27 @@ public class CategoryRepo {
     public ErrorCode updateCategory(Category category) {
         try(Connection conn = DB.source().getConnection();
             PreparedStatement stm = conn.prepareStatement("UPDATE category SET name = ?, color = ? WHERE id = ?")){
-                ErrorCode errCode = Utils.isCategoryNameValid(category.getName());
-                if(errCode != ErrorCode.NO_ERRORS) return errCode;
+                if(category.getName() != null){
+                    String strippedName = category.getName().strip();
+                    category.setName(strippedName);
+                }
+                
+                ErrorCode errCode = CategoryValidator.isCategoryNameValid(category.getName());
+                if(errCode != ErrorCode.OK) return errCode;
 
-                errCode = Utils.isColorValid(category.getColor());
-                if(errCode != ErrorCode.NO_ERRORS) return errCode;
+                errCode = CategoryValidator.isColorValid(category.getColor());
+                if(errCode != ErrorCode.OK) return errCode;
 
                 stm.setString(1, category.getName());
                 stm.setString(2, category.getColor());
                 stm.setInt(3, category.getId());
 
-                stm.executeUpdate();
-                return ErrorCode.NO_ERRORS;
+                int rowCount = stm.executeUpdate();
+                return rowCount == 1 ? ErrorCode.OK : ErrorCode.CATEGORY_DOES_NOT_EXIST;
 
         } catch (SQLException e) {
-            e.printStackTrace(); // TODO: return error code for unique constraint and non-existent id
+            if(e.getErrorCode() == 2627) return ErrorCode.CATEGORY_NAME_ALREADY_EXISTS;
+
             return ErrorCode.CATEGORY_SQL_ERROR;
         }
     }
@@ -56,11 +68,11 @@ public class CategoryRepo {
             PreparedStatement stm = conn.prepareStatement("DELETE FROM category WHERE id = ?")){
                 stm.setInt(1, id);
 
-                stm.executeUpdate();
-                return ErrorCode.NO_ERRORS;
+                int rowCount = stm.executeUpdate();
+                return rowCount == 1 ? ErrorCode.OK : ErrorCode.CATEGORY_DOES_NOT_EXIST;
 
         } catch (SQLException e) {
-            e.printStackTrace(); // TODO: return error code for non-existent id and if category has existing transactions
+            if(e.getErrorCode() == 547) return ErrorCode.CATEGORY_TRANSACTIONS_EXIST;
             return ErrorCode.CATEGORY_SQL_ERROR;
         }
     }
@@ -79,8 +91,7 @@ public class CategoryRepo {
             return categories;
 
         } catch (SQLException e){
-            e.printStackTrace();
-            return null; // TODO
+            return null;
         }
     }
 }
