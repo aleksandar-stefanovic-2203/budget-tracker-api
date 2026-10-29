@@ -1,34 +1,38 @@
 Categories:
-    --- Insert:
-        --- 1. Successful insert
-        --- 2. Name not specified
-        --- 3. Invalid length
-        --- 4. Name already exists
-        --- 5. Color not specified
-        --- 6. Color invalid format
-        --- 7. Service unavaliable
-        --- 8. Name strip
+    Insert:
+        1. Successful insert
+        2. Name not specified
+        3. Invalid length
+        4. Name already exists
+        5. Color not specified
+        6. Color invalid format
+        7. Service unavaliable
+        8. Name strip
 
-    --- Update:
-        --- 1. Successful update
-        --- 2. Name not specified
-        --- 3. Invalid length
-        --- 4. Name already exists
-        --- 5. Color not specified
-        --- 6. Color invalid format
-        --- 7. Category doesn't exist
-        --- 8. Service unavaliable
+    Update:
+        1. Successful update
+        2. Name not specified
+        3. Invalid length
+        4. Name already exists
+        5. Color not specified
+        6. Color invalid format
+        7. Category doesn't exist
+        8. Service unavaliable
+        9. Category ID not specified
+        10. Category ID invalid format
 
     Delete:
-        --- 1. Successful delete
-        --- 2. Category doesn't exist
-        --- 3. Service unavaliable
+        1. Successful delete
+        2. Category doesn't exist
+        3. Service unavaliable
         4. Category referenced by transactions
         5. Category deletes budgets
+        6. Category ID not specified
+        7. Category ID invalid format
 
     Get:
-        --- 1. Successful Get
-        --- 2. Service unavaliable
+        1. Successful Get
+        2. Service unavaliable
 
 Budgets:
     Insert:
@@ -42,6 +46,7 @@ Budgets:
         8. Budget already exists for given month and category
         9. Service unavaliable
         10. Amount too many decimal places
+        
     Update:
         1. Successful update
         2. Month not specified
@@ -54,12 +59,77 @@ Budgets:
         9. Service unavaliable
         10. Budget doesn't exist
         11. Amount too many decimal places
+        12. Budget ID not specified
+        13. Budget ID invalid format
 
     Delete:
         1. Successful delete
         2. Budget doesn't exist
         3. Service unavaliable
+        4. Budget ID not specified
+        5. Budget ID invalid format
+
     Get for month:
         1. Successful Get
         2. Service unavaliable
         3. Invalid month format
+
+Transactions:
+    Insert:
+        1. Successful insert
+        2. Type not specified
+        3. Type invalid format
+        4. Amount not specified
+        5. Amount out of bounds
+        6. Amount too many decimal places
+        7. Date not specified
+        8. Description out of bounds
+        9. Category not specified
+        10. Category doesn't exist
+        11. Service unavaliable
+        12. Description not specified
+    Update:
+        1. Successful update
+        2. Type not specified
+        3. Type invalid format
+        4. Amount not specified
+        5. Amount out of bounds
+        6. Amount too many decimal places
+        7. Date not specified
+        8. Description out of bounds
+        9. Category not specified
+        10. Category doesn't exist
+        11. Service unavaliable
+        12. Transaction doesn't exist
+        13. Transaction ID invalid format
+        14. Transaction ID not specified
+
+    Delete:
+        1. Successful delete
+        2. Transaction doesn't exist
+        3. Service unavaliable
+        4. Transaction ID invalid format
+        5. Transaction ID not specified
+        
+    Get by ID:
+        1. Successful Get
+        2. Transaction doesn't exist
+        3. Service unavaliable
+
+    Get all (with pagination and filters):
+        1. Get without filters and pagination
+        2. Get with pagination
+        3. Get with date filter
+        4. Get with category filter
+        5. Get with type filter
+        6. Get with text description filter
+        7. Get with date and category filter
+        8. Get with all filters
+        9. Get with pagination and all filters
+        10. Invalid page size
+        11. Invalid page
+        12. Invalid date range
+        13. Category name invalid length
+        14. Transaction type invalid format
+        15. Description out of bounds
+        16. Service unavaliable

@@ -27,6 +27,24 @@ public enum ErrorCode {
     BUDGET_EXISTS(HttpStatus.CONFLICT, "Budget already exists for the given month and category."),
     BUDGET_DOES_NOT_EXIST(HttpStatus.BAD_REQUEST, "Budget with the given ID doesn't exist."),
 
+    // Transaction error codes
+    TRANSACTION_ID_IS_NULL(HttpStatus.BAD_REQUEST, "Transaction ID is required."),
+    TRANSACTION_ID_OUT_OF_BOUNDS(HttpStatus.BAD_REQUEST, "Transaction ID is out of bounds."),
+    TRANSACTION_TYPE_IS_NULL(HttpStatus.BAD_REQUEST, "Transaction type is required."),
+    TRANSACTION_TYPE_INVALID(HttpStatus.BAD_REQUEST, "Transaction type must be INCOME or EXPENSE."),
+    TRANSACTION_AMOUNT_IS_NULL(HttpStatus.BAD_REQUEST, "Transaction amount is required."),
+    TRANSACTION_AMOUNT_OUT_OF_BOUNDS(HttpStatus.BAD_REQUEST, "Transaction amount is out of bounds."),
+    TRANSACTION_AMOUNT_INVALID_DECIMAL_PLACES(HttpStatus.BAD_REQUEST, "Transaction amount contains too many decimal places."),
+    TRANSACTION_DATE_IS_NULL(HttpStatus.BAD_REQUEST, "Transaction date is required."),
+    TRANSACTION_DESCRIPTION_INVALID_LENGTH(HttpStatus.BAD_REQUEST, "Transaction description cannot exceed 200 characters."),
+    TRANSACTION_CATEGORY_IS_NULL(HttpStatus.BAD_REQUEST, "Transaction category is required."),
+    TRANSACTION_CATEGORY_DOES_NOT_EXIST(HttpStatus.UNPROCESSABLE_CONTENT, "Transaction category doesn't exist in the database."),
+    TRANSACTION_DOES_NOT_EXIST(HttpStatus.NOT_FOUND, "Transaction with the given ID doesn't exist."),
+    TRANSACTION_PAGE_INVALID(HttpStatus.BAD_REQUEST, "Page must be greater than or equal to 1."),
+    TRANSACTION_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "Page size must be between 1 and 100."),
+    TRANSACTION_DATE_RANGE_INVALID(HttpStatus.BAD_REQUEST, "Start date must not be after end date."),
+    TRANSACTION_CATEGORY_NAME_INVALID_LENGTH(HttpStatus.BAD_REQUEST, "Category name filter cannot exceed 30 characters."),
+
     OK(HttpStatus.OK, "Request finished successfully."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Service is not avaliable at the moment.");
 

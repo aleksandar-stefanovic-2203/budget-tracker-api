@@ -21,12 +21,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.aleksandarstefanovic.budgettracker.db.dao.ErrorCode;
 import com.aleksandarstefanovic.budgettracker.db.dao.repo.BudgetRepo;
-import com.aleksandarstefanovic.budgettracker.db.dao.repo.BudgetRepo.Result;
 import com.aleksandarstefanovic.budgettracker.db.dao.repo.CategoryRepo;
 import com.aleksandarstefanovic.budgettracker.models.Budget;
 import com.aleksandarstefanovic.budgettracker.models.Category;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+		"spring.flyway.enabled=false",
+		"spring.autoconfigure.exclude=org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration"
+})
 @org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 class BudgetTrackerApiApplicationTests {
 	@Autowired
