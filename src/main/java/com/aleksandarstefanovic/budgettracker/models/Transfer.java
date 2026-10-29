@@ -9,18 +9,18 @@ public class Transfer {
     private Double amount;
     private Date date;
     private String description;
-    private Integer categoryId;
+    private Integer category_id;
 
     // Constructors
     public Transfer() {}
 
-    public Transfer(Integer id, String type, Double amount, Date date, String description, Integer categoryId) {
+    public Transfer(Integer id, String type, Double amount, Date date, String description, Integer category_id) {
         this.id = id;
         this.type = type;
         this.amount = amount;
         this.date = date;
         this.description = description;
-        this.categoryId = categoryId;
+        this.category_id = category_id;
     }
 
     // Getters and Setters
@@ -65,10 +65,10 @@ public class Transfer {
     }
 
     public Integer getCategoryId() {
-        return categoryId;
+        return category_id;
     }
 
-    public void setCategoryId(Integer categoryId) {
-        this.categoryId = categoryId;
+    public void setCategoryId(Integer category_id) {
+        this.category_id = category_id;
     }
 }
