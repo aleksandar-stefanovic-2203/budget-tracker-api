@@ -1,6 +1,7 @@
 package com.aleksandarstefanovic.budgettracker.controllers;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -17,6 +18,7 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.math.BigDecimal;
 
 import javax.sql.DataSource;
 
@@ -362,6 +364,70 @@ class TransferControllerIntegrationTests {
         when(statement.executeQuery()).thenThrow(new SQLException("database error"));
 
         mockMvc.perform(get("/transactions/9"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().string(ErrorCode.SERVICE_UNAVAILABLE.getDescription()));
+    }
+
+    @Test
+    void monthlySummaryReturnsAggregatedTotals() throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        PreparedStatement categoriesStatement = mock(PreparedStatement.class);
+        ResultSet categoriesResult = mock(ResultSet.class);
+        when(statement.executeQuery()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(true);
+        when(resultSet.getBigDecimal("total_income")).thenReturn(new BigDecimal("2500.00"));
+        when(resultSet.getBigDecimal("total_expenses")).thenReturn(new BigDecimal("750.50"));
+        when(resultSet.getLong("transaction_count")).thenReturn(7L);
+        String categoriesSql = "SELECT c.name AS category_name, "
+                + "COALESCE(expenses.spent, 0) AS spent, COALESCE(b.amount, 0) AS budget "
+                + "FROM category c "
+                + "LEFT JOIN (SELECT category_id, SUM(amount) AS spent FROM transfer "
+                + "WHERE type = 'EXPENSE' AND date >= ? AND date < ? GROUP BY category_id) expenses "
+                + "ON expenses.category_id = c.id "
+                + "LEFT JOIN budget b ON b.category_id = c.id AND b.month = ? "
+                + "WHERE expenses.category_id IS NOT NULL OR b.category_id IS NOT NULL "
+                + "ORDER BY COALESCE(expenses.spent, 0) DESC, c.name ASC";
+        when(connection.prepareStatement(eq(categoriesSql))).thenReturn(categoriesStatement);
+        when(categoriesStatement.executeQuery()).thenReturn(categoriesResult);
+        when(categoriesResult.next()).thenReturn(true, true, true, false);
+        when(categoriesResult.getString("category_name")).thenReturn("Food", "Books", "Transport");
+        when(categoriesResult.getBigDecimal("spent")).thenReturn(
+                new BigDecimal("75.00"), new BigDecimal("0.00"), new BigDecimal("0.00"));
+        when(categoriesResult.getBigDecimal("budget")).thenReturn(
+                new BigDecimal("50.00"), new BigDecimal("40.00"), new BigDecimal("0.00"));
+
+        mockMvc.perform(get("/transactions/monthly-summary").param("month", "2026-10-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.month").value("2026-10-01"))
+                .andExpect(jsonPath("$.totalIncome").value(2500.00))
+                .andExpect(jsonPath("$.totalExpenses").value(750.50))
+                .andExpect(jsonPath("$.balance").value(1749.50))
+                .andExpect(jsonPath("$.transactionCount").value(7))
+                .andExpect(jsonPath("$.categories.length()").value(3))
+                .andExpect(jsonPath("$.categories[0].categoryName").value("Food"))
+                .andExpect(jsonPath("$.categories[0].spent").value(75.00))
+                .andExpect(jsonPath("$.categories[0].budget").value(50.00))
+                .andExpect(jsonPath("$.categories[0].left").value(-25.00))
+                .andExpect(jsonPath("$.categories[1].categoryName").value("Books"))
+                .andExpect(jsonPath("$.categories[1].left").value(40.00))
+                .andExpect(jsonPath("$.categories[2].categoryName").value("Transport"))
+                .andExpect(jsonPath("$.categories[2].left").value(0.00));
+
+        org.mockito.Mockito.verify(statement).setDate(1, Date.valueOf("2026-10-01"));
+        org.mockito.Mockito.verify(statement).setDate(2, Date.valueOf("2026-11-01"));
+        org.mockito.Mockito.verify(categoriesStatement).setDate(1, Date.valueOf("2026-10-01"));
+        org.mockito.Mockito.verify(categoriesStatement).setDate(2, Date.valueOf("2026-11-01"));
+        org.mockito.Mockito.verify(categoriesStatement).setDate(3, Date.valueOf("2026-10-01"));
+    }
+
+    @Test
+    void monthlySummaryRejectsNonFirstDayAndReturnsServiceUnavailableOnDatabaseError() throws Exception {
+        mockMvc.perform(get("/transactions/monthly-summary").param("month", "2026-10-02"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(ErrorCode.TRANSACTION_MONTH_INVALID_FORMAT.getDescription()));
+
+        when(statement.executeQuery()).thenThrow(new SQLException("database error"));
+        mockMvc.perform(get("/transactions/monthly-summary").param("month", "2026-10-01"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(content().string(ErrorCode.SERVICE_UNAVAILABLE.getDescription()));
     }

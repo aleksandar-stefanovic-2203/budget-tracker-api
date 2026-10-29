@@ -13,7 +13,7 @@ public final class APIResponse {
         return ResponseEntity.status(errCode.getStatus()).body(errCode.getDescription());
     }
 
-    public static <T> ResponseEntity<List<T>> fromList(List<T> list, ErrorCode errCode) { // TODO: print errCode description when list is null.
+    public static <T> ResponseEntity<List<T>> fromList(List<T> list, ErrorCode errCode) {
         return ResponseEntity.status(errCode.getStatus()).body(list);
     }
 }

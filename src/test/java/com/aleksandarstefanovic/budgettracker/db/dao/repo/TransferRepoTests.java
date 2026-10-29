@@ -9,7 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -269,6 +271,83 @@ class TransferRepoTests {
 
             assertEquals(ErrorCode.SERVICE_UNAVAILABLE, result.errCode());
             assertNull(result.list());
+        }
+    }
+
+    @Test
+    void getsMonthlySummaryAndUsesExclusiveNextMonthBoundary() throws Exception {
+        try (Fixture fixture = new Fixture()) {
+            ResultSet resultSet = mock(ResultSet.class);
+            PreparedStatement categoriesStatement = mock(PreparedStatement.class);
+            ResultSet categoriesResult = mock(ResultSet.class);
+            when(fixture.statement.executeQuery()).thenReturn(resultSet);
+            when(resultSet.next()).thenReturn(true);
+            when(resultSet.getBigDecimal("total_income")).thenReturn(new BigDecimal("2500.00"));
+            when(resultSet.getBigDecimal("total_expenses")).thenReturn(new BigDecimal("750.50"));
+            when(resultSet.getLong("transaction_count")).thenReturn(7L);
+            String categoriesSql = "SELECT c.name AS category_name, "
+                    + "COALESCE(expenses.spent, 0) AS spent, COALESCE(b.amount, 0) AS budget "
+                    + "FROM category c "
+                    + "LEFT JOIN (SELECT category_id, SUM(amount) AS spent FROM transfer "
+                    + "WHERE type = 'EXPENSE' AND date >= ? AND date < ? GROUP BY category_id) expenses "
+                    + "ON expenses.category_id = c.id "
+                    + "LEFT JOIN budget b ON b.category_id = c.id AND b.month = ? "
+                    + "WHERE expenses.category_id IS NOT NULL OR b.category_id IS NOT NULL "
+                    + "ORDER BY COALESCE(expenses.spent, 0) DESC, c.name ASC";
+            when(fixture.connection.prepareStatement(eq(categoriesSql))).thenReturn(categoriesStatement);
+            when(categoriesStatement.executeQuery()).thenReturn(categoriesResult);
+            when(categoriesResult.next()).thenReturn(true, true, true, true, false);
+            when(categoriesResult.getString("category_name"))
+                    .thenReturn("Grocery", "Dining", "Fitness", "Books");
+            when(categoriesResult.getBigDecimal("spent")).thenReturn(
+                    new BigDecimal("120.00"), new BigDecimal("50.00"),
+                    new BigDecimal("50.00"), new BigDecimal("0.00"));
+            when(categoriesResult.getBigDecimal("budget")).thenReturn(
+                    new BigDecimal("100.00"), new BigDecimal("20.00"),
+                    new BigDecimal("90.00"), new BigDecimal("50.00"));
+
+            TransferRepo.MonthlySummaryResult result =
+                    new TransferRepo().getMonthlySummary(Date.valueOf("2026-12-01"));
+
+            assertEquals(ErrorCode.OK, result.errCode());
+            assertEquals("2026-12-01", result.summary().month());
+            assertEquals(new BigDecimal("2500.00"), result.summary().totalIncome());
+            assertEquals(new BigDecimal("750.50"), result.summary().totalExpenses());
+            assertEquals(new BigDecimal("1749.50"), result.summary().balance());
+            assertEquals(7L, result.summary().transactionCount());
+            assertEquals(4, result.summary().categories().size());
+            assertEquals("Grocery", result.summary().categories().get(0).categoryName());
+            assertEquals(new BigDecimal("-20.00"), result.summary().categories().get(0).left());
+            assertEquals("Dining", result.summary().categories().get(1).categoryName());
+            assertEquals("Fitness", result.summary().categories().get(2).categoryName());
+            assertEquals("Books", result.summary().categories().get(3).categoryName());
+            assertEquals(new BigDecimal("50.00"), result.summary().categories().get(3).left());
+            verify(fixture.connection).prepareStatement(
+                    "SELECT COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS total_income, "
+                            + "COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS total_expenses, "
+                            + "COUNT_BIG(*) AS transaction_count FROM transfer WHERE date >= ? AND date < ?");
+            verify(fixture.statement).setDate(1, Date.valueOf("2026-12-01"));
+            verify(fixture.statement).setDate(2, Date.valueOf("2027-01-01"));
+            verify(fixture.connection).prepareStatement(categoriesSql);
+            verify(categoriesStatement).setDate(1, Date.valueOf("2026-12-01"));
+            verify(categoriesStatement).setDate(2, Date.valueOf("2027-01-01"));
+            verify(categoriesStatement).setDate(3, Date.valueOf("2026-12-01"));
+        }
+    }
+
+    @Test
+    void monthlySummaryValidatesMonthAndMapsDatabaseFailure() throws Exception {
+        try (Fixture fixture = new Fixture()) {
+            TransferRepo repo = new TransferRepo();
+            TransferRepo.MonthlySummaryResult invalid = repo.getMonthlySummary(Date.valueOf("2026-10-02"));
+            assertEquals(ErrorCode.TRANSACTION_MONTH_INVALID_FORMAT, invalid.errCode());
+            assertNull(invalid.summary());
+            verify(fixture.connection, never()).prepareStatement(anyString());
+
+            when(fixture.statement.executeQuery()).thenThrow(new SQLException("database error"));
+            TransferRepo.MonthlySummaryResult failed = repo.getMonthlySummary(Date.valueOf("2026-10-01"));
+            assertEquals(ErrorCode.SERVICE_UNAVAILABLE, failed.errCode());
+            assertNull(failed.summary());
         }
     }
 }

@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.aleksandarstefanovic.budgettracker.db.dao.ErrorCode;
 import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo;
 import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo.Result;
+import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo.MonthlySummaryResult;
 import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo.SingleResult;
 import com.aleksandarstefanovic.budgettracker.models.Transfer;
 import com.aleksandarstefanovic.budgettracker.services.TransferCsvImportService;
@@ -73,6 +74,15 @@ public class TransferController {
             return ResponseEntity.status(result.errCode().getStatus()).body(result.errCode().getDescription());
         }
         return ResponseEntity.ok(result.transfer());
+    }
+
+    @GetMapping("/monthly-summary")
+    public ResponseEntity<?> getMonthlySummary(@RequestParam Date month) {
+        MonthlySummaryResult result = transferRepo.getMonthlySummary(month);
+        if (result.errCode() != ErrorCode.OK) {
+            return ResponseEntity.status(result.errCode().getStatus()).body(result.errCode().getDescription());
+        }
+        return ResponseEntity.ok(result.summary());
     }
 
     @GetMapping

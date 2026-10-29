@@ -5,6 +5,8 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -89,6 +91,80 @@ public class TransferRepo {
     }
 
     public record Result(List<Transfer> list, ErrorCode errCode) {}
+
+    public record MonthlySummary(
+            String month,
+            BigDecimal totalIncome,
+            BigDecimal totalExpenses,
+            BigDecimal balance,
+            long transactionCount,
+            List<CategoryMonthlySummary> categories) {}
+
+    public record MonthlySummaryResult(MonthlySummary summary, ErrorCode errCode) {}
+
+    public record CategoryMonthlySummary(
+            String categoryName,
+            BigDecimal spent,
+            BigDecimal budget,
+            BigDecimal left) {}
+
+    public MonthlySummaryResult getMonthlySummary(Date month) {
+        ErrorCode errorCode = TransferValidator.isMonthValid(month);
+        if (errorCode != ErrorCode.OK) return new MonthlySummaryResult(null, errorCode);
+
+        LocalDate start = month.toLocalDate();
+        Date nextMonth = Date.valueOf(start.plusMonths(1));
+        String totalsSql = "SELECT "
+                + "COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS total_income, "
+                + "COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS total_expenses, "
+                + "COUNT_BIG(*) AS transaction_count "
+                + "FROM transfer WHERE date >= ? AND date < ?";
+        String categoriesSql = "SELECT c.name AS category_name, "
+                + "COALESCE(expenses.spent, 0) AS spent, COALESCE(b.amount, 0) AS budget "
+                + "FROM category c "
+                + "LEFT JOIN (SELECT category_id, SUM(amount) AS spent FROM transfer "
+                + "WHERE type = 'EXPENSE' AND date >= ? AND date < ? GROUP BY category_id) expenses "
+                + "ON expenses.category_id = c.id "
+                + "LEFT JOIN budget b ON b.category_id = c.id AND b.month = ? "
+                + "WHERE expenses.category_id IS NOT NULL OR b.category_id IS NOT NULL "
+                + "ORDER BY COALESCE(expenses.spent, 0) DESC, c.name ASC";
+
+        try (Connection connection = DB.source().getConnection();
+                PreparedStatement totalsStatement = connection.prepareStatement(totalsSql);
+                PreparedStatement categoriesStatement = connection.prepareStatement(categoriesSql)) {
+            totalsStatement.setDate(1, month);
+            totalsStatement.setDate(2, nextMonth);
+            ResultSet totalsResult = totalsStatement.executeQuery();
+            if (!totalsResult.next()) return new MonthlySummaryResult(null, ErrorCode.SERVICE_UNAVAILABLE);
+
+            BigDecimal totalIncome = totalsResult.getBigDecimal("total_income");
+            BigDecimal totalExpenses = totalsResult.getBigDecimal("total_expenses");
+            categoriesStatement.setDate(1, month);
+            categoriesStatement.setDate(2, nextMonth);
+            categoriesStatement.setDate(3, month);
+            ResultSet categoriesResult = categoriesStatement.executeQuery();
+            List<CategoryMonthlySummary> categories = new ArrayList<>();
+            while (categoriesResult.next()) {
+                BigDecimal spent = categoriesResult.getBigDecimal("spent");
+                BigDecimal budget = categoriesResult.getBigDecimal("budget");
+                categories.add(new CategoryMonthlySummary(
+                        categoriesResult.getString("category_name"),
+                        spent,
+                        budget,
+                        budget.subtract(spent)));
+            }
+            MonthlySummary summary = new MonthlySummary(
+                    start.toString(),
+                    totalIncome,
+                    totalExpenses,
+                    totalIncome.subtract(totalExpenses),
+                    totalsResult.getLong("transaction_count"),
+                    List.copyOf(categories));
+            return new MonthlySummaryResult(summary, ErrorCode.OK);
+        } catch (SQLException exception) {
+            return new MonthlySummaryResult(null, ErrorCode.SERVICE_UNAVAILABLE);
+        }
+    }
 
     public Result getTransfers(
             Integer page,

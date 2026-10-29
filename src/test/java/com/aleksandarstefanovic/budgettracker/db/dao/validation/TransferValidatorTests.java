@@ -59,6 +59,15 @@ class TransferValidatorTests {
     }
 
     @Test
+    void validatesMonthlySummaryMonth() {
+        assertEquals(ErrorCode.TRANSACTION_MONTH_INVALID_FORMAT, TransferValidator.isMonthValid(null));
+        assertEquals(
+                ErrorCode.TRANSACTION_MONTH_INVALID_FORMAT,
+                TransferValidator.isMonthValid(Date.valueOf("2026-10-02")));
+        assertEquals(ErrorCode.OK, TransferValidator.isMonthValid(Date.valueOf("2026-10-01")));
+    }
+
+    @Test
     void validatesPaginationAndFilters() {
         assertEquals(ErrorCode.TRANSACTION_PAGE_INVALID, TransferValidator.isPageValid(null));
         assertEquals(ErrorCode.TRANSACTION_PAGE_INVALID, TransferValidator.isPageValid(0));

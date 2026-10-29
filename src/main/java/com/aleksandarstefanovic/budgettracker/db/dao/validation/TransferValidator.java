@@ -42,6 +42,13 @@ public final class TransferValidator {
         return date == null ? ErrorCode.TRANSACTION_DATE_IS_NULL : ErrorCode.OK;
     }
 
+    public static ErrorCode isMonthValid(Date month) {
+        if (month == null || month.toLocalDate().getDayOfMonth() != 1) {
+            return ErrorCode.TRANSACTION_MONTH_INVALID_FORMAT;
+        }
+        return ErrorCode.OK;
+    }
+
     public static ErrorCode isDescriptionValid(String description) {
         if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             return ErrorCode.TRANSACTION_DESCRIPTION_INVALID_LENGTH;

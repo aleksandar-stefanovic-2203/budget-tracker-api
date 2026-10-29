@@ -43,6 +43,7 @@ public enum ErrorCode {
     TRANSACTION_PAGE_INVALID(HttpStatus.BAD_REQUEST, "Page must be greater than or equal to 1."),
     TRANSACTION_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "Page size must be between 1 and 100."),
     TRANSACTION_DATE_RANGE_INVALID(HttpStatus.BAD_REQUEST, "Start date must not be after end date."),
+    TRANSACTION_MONTH_INVALID_FORMAT(HttpStatus.BAD_REQUEST, "Transaction summary month must be the first day of a month."),
     TRANSACTION_CATEGORY_NAME_INVALID_LENGTH(HttpStatus.BAD_REQUEST, "Category name filter cannot exceed 30 characters."),
     TRANSACTION_AMOUNT_INVALID_FORMAT(HttpStatus.BAD_REQUEST, "Transaction amount must be a valid number."),
     TRANSACTION_DATE_INVALID_FORMAT(HttpStatus.BAD_REQUEST, "Transaction date must use YYYY-MM-DD format."),
