@@ -1,5 +1,3 @@
-type,amount,date,description,categoryId
-EXPENSE,12.34,2026-10-29,Lunch,1
-INCOME,1500.00,2026-10-30,Salary,2
-EXPENSE,8.50,2026-10-31,"Coffee, with a friend",1
-EXPENSE,4.25,2026-11-01,,1
+type,amount,date,description,category
+expense,12.50,2026-10-08,Lunch,Eating out
+income,300.00,2026-10-09,,Other

@@ -64,6 +64,8 @@ class TransferControllerIntegrationTests {
     private DataSource dataSource;
     private Connection connection;
     private PreparedStatement statement;
+    private PreparedStatement categoryStatement;
+    private ResultSet categoryResult;
     private MockedStatic<DB> db;
 
     @BeforeEach
@@ -71,10 +73,19 @@ class TransferControllerIntegrationTests {
         dataSource = mock(DataSource.class);
         connection = mock(Connection.class);
         statement = mock(PreparedStatement.class);
+        categoryStatement = mock(PreparedStatement.class);
+        categoryResult = mock(ResultSet.class);
         db = mockStatic(DB.class);
 
         when(dataSource.getConnection()).thenReturn(connection);
-        when(connection.prepareStatement(anyString())).thenReturn(statement);
+        when(connection.prepareStatement(anyString())).thenAnswer(invocation ->
+                invocation.<String>getArgument(0).equals("SELECT id, name FROM category")
+                        ? categoryStatement
+                        : statement);
+        when(categoryStatement.executeQuery()).thenReturn(categoryResult);
+        when(categoryResult.next()).thenReturn(true, false);
+        when(categoryResult.getString("name")).thenReturn("Food");
+        when(categoryResult.getInt("id")).thenReturn(4);
         db.when(DB::source).thenReturn(dataSource);
     }
 
@@ -162,11 +173,12 @@ class TransferControllerIntegrationTests {
                 .thenThrow(new SQLException("missing category", null, 547))
                 .thenReturn(1);
         String csv = """
-                type,amount,date,description,categoryId
-                EXPENSE,12.34,2026-10-29,Lunch,4
-                EXPENSE,not-a-number,2026-10-29,Invalid amount,4
-                INCOME,100.00,2026-10-29,Unknown category,99
-                INCOME,1500.00,2026-10-30,Salary,4
+                type,amount,date,description,category
+                expense,12.34,2026-10-29,Lunch,Food
+                expense,not-a-number,2026-10-29,Invalid amount,Food
+                income,100.00,2026-10-29,Unknown category,Unknown
+                income,100.00,2026-10-29,Database rejected,Food
+                income,1500.00,2026-10-30,Salary,fOoD
                 """;
         MockMultipartFile file = new MockMultipartFile(
                 "file", "transactions.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -175,23 +187,26 @@ class TransferControllerIntegrationTests {
                         .multipart("/transactions/import")
                         .file(file))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalRows").value(4))
+                .andExpect(jsonPath("$.totalRows").value(5))
                 .andExpect(jsonPath("$.importedRows").value(2))
-                .andExpect(jsonPath("$.failedRows").value(2))
+                .andExpect(jsonPath("$.failedRows").value(3))
                 .andExpect(jsonPath("$.errors[0].row").value(3))
                 .andExpect(jsonPath("$.errors[0].code").value("TRANSACTION_AMOUNT_INVALID_FORMAT"))
                 .andExpect(jsonPath("$.errors[1].row").value(4))
-                .andExpect(jsonPath("$.errors[1].code").value("TRANSACTION_CATEGORY_DOES_NOT_EXIST"));
+                .andExpect(jsonPath("$.errors[1].code").value("TRANSACTION_CATEGORY_DOES_NOT_EXIST"))
+                .andExpect(jsonPath("$.errors[2].row").value(5))
+                .andExpect(jsonPath("$.errors[2].code").value("TRANSACTION_CATEGORY_DOES_NOT_EXIST"));
 
         org.mockito.Mockito.verify(statement, org.mockito.Mockito.times(3)).executeUpdate();
+        org.mockito.Mockito.verify(connection).prepareStatement("SELECT id, name FROM category");
     }
 
     @Test
     void csvImportSupportsQuotedCommasAndEscapedQuotes() throws Exception {
         when(statement.executeUpdate()).thenReturn(1);
         String csv = """
-                type,amount,date,description,categoryId
-                EXPENSE,12.34,2026-10-29,\"Lunch, team \"\"A\"\"\",4
+                type,amount,date,description,category
+                expense,12.34,2026-10-29,\"Lunch, team \"\"A\"\"\",Food
                 """;
         MockMultipartFile file = new MockMultipartFile(
                 "file", "transactions.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -209,7 +224,7 @@ class TransferControllerIntegrationTests {
     @Test
     void csvImportAcceptsBomAndOptionalDescriptionWithReorderedColumns() throws Exception {
         when(statement.executeUpdate()).thenReturn(1);
-        String csv = "\uFEFFcategoryId,date,amount,type\n4,2026-10-29,3.50,EXPENSE\n";
+        String csv = "\uFEFFcategory,date,amount,type\nfOoD,2026-10-29,3.50,EXPENSE\n";
         MockMultipartFile file = new MockMultipartFile(
                 "file", "transactions.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
@@ -226,8 +241,8 @@ class TransferControllerIntegrationTests {
     @Test
     void csvImportRejectsMalformedFileBeforeInsertingAnyRows() throws Exception {
         String csv = """
-                type,amount,date,description,categoryId
-                EXPENSE,12.34,2026-10-29,"unterminated description,4
+                type,amount,date,description,category
+                EXPENSE,12.34,2026-10-29,"unterminated description,Food
                 """;
         MockMultipartFile file = new MockMultipartFile(
                 "file", "transactions.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -238,7 +253,7 @@ class TransferControllerIntegrationTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("TRANSACTION_CSV_FILE_INVALID"));
 
-        org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).prepareStatement(anyString());
+        org.mockito.Mockito.verify(statement, org.mockito.Mockito.never()).executeUpdate();
     }
 
     @Test
@@ -254,8 +269,8 @@ class TransferControllerIntegrationTests {
 
         MockMultipartFile invalidRow = new MockMultipartFile(
                 "file", "bad-row.csv", "text/csv",
-                ("type,amount,date,description,categoryId\n"
-                        + "EXPENSE,12.34,2026-10-29,Lunch,4,unexpected\n")
+                ("type,amount,date,description,category\n"
+                        + "EXPENSE,12.34,2026-10-29,Lunch,Food,unexpected\n")
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .multipart("/transactions/import")
@@ -266,11 +281,11 @@ class TransferControllerIntegrationTests {
                 .andExpect(jsonPath("$.errors[0].row").value(2))
                 .andExpect(jsonPath("$.errors[0].code").value("TRANSACTION_CSV_ROW_INVALID"));
 
-        org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).prepareStatement(anyString());
+        org.mockito.Mockito.verify(statement, org.mockito.Mockito.never()).executeUpdate();
     }
 
     @Test
-    void csvImportRejectsEmptyAndOversizedFiles() throws Exception {
+    void csvImportRejectsEmptyAndAcceptsFilesLargerThanFiveMegabytes() throws Exception {
         MockMultipartFile emptyFile = new MockMultipartFile("file", "empty.csv", "text/csv", new byte[0]);
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .multipart("/transactions/import")
@@ -278,13 +293,19 @@ class TransferControllerIntegrationTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("TRANSACTION_CSV_FILE_INVALID"));
 
-        MockMultipartFile oversizedFile = new MockMultipartFile(
-                "file", "large.csv", "text/csv", new byte[5 * 1024 * 1024 + 1]);
+        String largeCsv = "type,amount,date,description,category\n"
+                + "expense,1.00,2026-10-29,\""
+                + "x".repeat(5 * 1024 * 1024)
+                + "\",Food\n";
+        MockMultipartFile largeFile = new MockMultipartFile(
+                "file", "large.csv", "text/csv", largeCsv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .multipart("/transactions/import")
-                        .file(oversizedFile))
-                .andExpect(status().isPayloadTooLarge())
-                .andExpect(jsonPath("$.code").value("TRANSACTION_CSV_FILE_TOO_LARGE"));
+                        .file(largeFile))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRows").value(1))
+                .andExpect(jsonPath("$.importedRows").value(0))
+                .andExpect(jsonPath("$.errors[0].code").value("TRANSACTION_DESCRIPTION_INVALID_LENGTH"));
     }
 
     @Test

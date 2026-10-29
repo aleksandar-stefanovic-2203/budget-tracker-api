@@ -2,6 +2,7 @@ package com.aleksandarstefanovic.budgettracker.controllers;
 
 import java.io.IOException;
 import java.sql.Date;
+import java.sql.SQLException;
 import java.util.List;
 
 import org.springframework.http.MediaType;
@@ -47,13 +48,18 @@ public class TransferController {
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> importTransactions(@RequestPart("file") MultipartFile file) throws IOException {
+    public ResponseEntity<?> importTransactions(@RequestPart("file") MultipartFile file)
+            throws IOException {
         try {
             ImportReport report = csvImportService.importTransactions(file);
             return ResponseEntity.ok(report);
         } catch (InvalidCsvException exception) {
             return ResponseEntity.status(exception.getErrorCode().getStatus())
                     .body(new CsvImportError(exception.getErrorCode().name(), exception.getMessage()));
+        } catch (SQLException exception) {
+            return ResponseEntity.status(ErrorCode.SERVICE_UNAVAILABLE.getStatus())
+                    .body(new CsvImportError(
+                            ErrorCode.SERVICE_UNAVAILABLE.name(), ErrorCode.SERVICE_UNAVAILABLE.getDescription()));
         }
     }
 

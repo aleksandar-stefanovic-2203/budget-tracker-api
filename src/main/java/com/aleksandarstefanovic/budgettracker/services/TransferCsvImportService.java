@@ -1,11 +1,14 @@
 package com.aleksandarstefanovic.budgettracker.services;
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.io.InputStreamReader;
+import java.io.PushbackReader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -19,13 +22,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.aleksandarstefanovic.budgettracker.db.dao.ErrorCode;
 import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo;
+import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo.CsvImportSession;
 import com.aleksandarstefanovic.budgettracker.db.dao.validation.TransferValidator;
 import com.aleksandarstefanovic.budgettracker.models.Transfer;
 
 @Service
 public class TransferCsvImportService {
-    private static final long MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-    private static final List<String> REQUIRED_HEADERS = List.of("type", "amount", "date", "categoryid");
+    private static final int MAX_DATA_ROWS = 1_000_000;
+    private static final List<String> REQUIRED_HEADERS = List.of("type", "amount", "date", "category");
 
     private final TransferRepo transferRepo;
 
@@ -52,158 +56,87 @@ public class TransferCsvImportService {
 
     private record CsvRecord(int startLine, List<String> fields) {}
 
-    public ImportReport importTransactions(MultipartFile file) throws IOException, InvalidCsvException {
+    public ImportReport importTransactions(MultipartFile file) throws IOException, SQLException, InvalidCsvException {
         if (file == null || file.isEmpty()) {
             throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
         }
-        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_TOO_LARGE);
-        }
 
-        String csv = decodeUtf8(file.getBytes());
-        List<CsvRecord> records = parseCsv(csv);
-        if (records.isEmpty()) {
-            throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
-        }
-
-        Map<String, Integer> headerIndexes = validateHeader(records.get(0));
+        Map<String, Integer> headerIndexes = validateFile(file);
         int totalRows = 0;
         int importedRows = 0;
         List<RowError> errors = new ArrayList<>();
 
-        for (int index = 1; index < records.size(); index++) {
-            CsvRecord record = records.get(index);
-            if (isBlank(record.fields())) continue;
+        try (CsvParser parser = new CsvParser(openReader(file));
+                CsvImportSession importSession = transferRepo.openCsvImportSession()) {
+            parser.nextRecord();
+            CsvRecord record;
+            while ((record = parser.nextRecord()) != null) {
+                if (isBlank(record.fields())) continue;
 
-            totalRows++;
-            ErrorCode rowError;
-            if (record.fields().size() != headerIndexes.size()) {
-                rowError = ErrorCode.TRANSACTION_CSV_ROW_INVALID;
-            } else {
-                try {
-                    Transfer transfer = transferFrom(record.fields(), headerIndexes);
-                    rowError = validateTransfer(transfer);
-                    if (rowError == ErrorCode.OK) {
-                        rowError = transferRepo.insertTransfer(transfer);
+                totalRows++;
+                ErrorCode rowError;
+                if (record.fields().size() != headerIndexes.size()) {
+                    rowError = ErrorCode.TRANSACTION_CSV_ROW_INVALID;
+                } else {
+                    try {
+                        String categoryName = value(record.fields(), headerIndexes, "category");
+                        Transfer transfer = transferFrom(record.fields(), headerIndexes);
+                        rowError = validateTransfer(transfer);
+                        if (rowError == ErrorCode.OK) {
+                            rowError = importSession.insertTransfer(categoryName, transfer);
+                        }
+                    } catch (RowConversionException exception) {
+                        rowError = exception.errorCode;
                     }
-                } catch (RowConversionException exception) {
-                    rowError = exception.errorCode;
+                }
+
+                if (rowError == ErrorCode.OK) {
+                    importedRows++;
+                } else {
+                    errors.add(new RowError(record.startLine(), rowError.name(), rowError.getDescription()));
                 }
             }
-
-            if (rowError == ErrorCode.OK) {
-                importedRows++;
-            } else {
-                errors.add(new RowError(record.startLine(), rowError.name(), rowError.getDescription()));
-            }
+        } catch (CharacterCodingException exception) {
+            throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
         }
 
         return new ImportReport(totalRows, importedRows, errors.size(), List.copyOf(errors));
     }
 
-    private static String decodeUtf8(byte[] bytes) throws InvalidCsvException {
-        try {
-            String content = StandardCharsets.UTF_8.newDecoder()
-                    .onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT)
-                    .decode(ByteBuffer.wrap(bytes))
-                    .toString();
-            return content.startsWith("\uFEFF") ? content.substring(1) : content;
+    private static Map<String, Integer> validateFile(MultipartFile file) throws IOException, InvalidCsvException {
+        try (CsvParser parser = new CsvParser(openReader(file))) {
+            CsvRecord header = parser.nextRecord();
+            if (header == null) throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
+            Map<String, Integer> indexes = validateHeader(header);
+
+            int dataRows = 0;
+            CsvRecord record;
+            while ((record = parser.nextRecord()) != null) {
+                if (isBlank(record.fields())) continue;
+                dataRows++;
+                if (dataRows > MAX_DATA_ROWS) {
+                    throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_TOO_MANY_ROWS);
+                }
+            }
+            return indexes;
         } catch (CharacterCodingException exception) {
             throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
         }
     }
 
-    private static List<CsvRecord> parseCsv(String csv) throws InvalidCsvException {
-        List<CsvRecord> records = new ArrayList<>();
-        List<String> fields = new ArrayList<>();
-        StringBuilder field = new StringBuilder();
-        int line = 1;
-        int recordStartLine = 1;
-        boolean insideQuotes = false;
-        boolean afterClosingQuote = false;
-
-        for (int index = 0; index < csv.length(); index++) {
-            char current = csv.charAt(index);
-
-            if (insideQuotes) {
-                if (current == '"') {
-                    if (index + 1 < csv.length() && csv.charAt(index + 1) == '"') {
-                        field.append('"');
-                        index++;
-                    } else {
-                        insideQuotes = false;
-                        afterClosingQuote = true;
-                    }
-                } else {
-                    field.append(current);
-                    if (current == '\n') line++;
-                    else if (current == '\r' && (index + 1 >= csv.length() || csv.charAt(index + 1) != '\n')) {
-                        line++;
-                    }
-                }
-                continue;
-            }
-
-            if (afterClosingQuote) {
-                if (current == ',') {
-                    addField(fields, field);
-                    afterClosingQuote = false;
-                } else if (current == '\r' || current == '\n') {
-                    addField(fields, field);
-                    addRecord(records, fields, recordStartLine);
-                    afterClosingQuote = false;
-                    if (current == '\r' && index + 1 < csv.length() && csv.charAt(index + 1) == '\n') index++;
-                    line++;
-                    recordStartLine = line;
-                } else if (current != ' ' && current != '\t') {
-                    throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
-                }
-                continue;
-            }
-
-            if (current == '"') {
-                if (field.length() != 0) {
-                    throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
-                }
-                insideQuotes = true;
-            } else if (current == ',') {
-                addField(fields, field);
-            } else if (current == '\r' || current == '\n') {
-                addField(fields, field);
-                addRecord(records, fields, recordStartLine);
-                if (current == '\r' && index + 1 < csv.length() && csv.charAt(index + 1) == '\n') index++;
-                line++;
-                recordStartLine = line;
-            } else {
-                field.append(current);
-            }
-        }
-
-        if (insideQuotes) {
-            throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
-        }
-        if (afterClosingQuote || field.length() > 0 || !fields.isEmpty()) {
-            addField(fields, field);
-            addRecord(records, fields, recordStartLine);
-        }
-        return records;
-    }
-
-    private static void addField(List<String> fields, StringBuilder field) {
-        fields.add(field.toString());
-        field.setLength(0);
-    }
-
-    private static void addRecord(List<CsvRecord> records, List<String> fields, int startLine) {
-        records.add(new CsvRecord(startLine, List.copyOf(fields)));
-        fields.clear();
+    private static BufferedReader openReader(MultipartFile file) throws IOException {
+        return new BufferedReader(new InputStreamReader(
+                file.getInputStream(),
+                StandardCharsets.UTF_8.newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)));
     }
 
     private static Map<String, Integer> validateHeader(CsvRecord header) throws InvalidCsvException {
         Map<String, Integer> indexes = new HashMap<>();
         for (int index = 0; index < header.fields().size(); index++) {
             String name = header.fields().get(index).strip().toLowerCase(Locale.ROOT);
+            if (index == 0 && name.startsWith("\uFEFF")) name = name.substring(1);
             if (name.isEmpty() || indexes.putIfAbsent(name, index) != null) {
                 throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
             }
@@ -224,12 +157,13 @@ public class TransferCsvImportService {
     private static Transfer transferFrom(List<String> fields, Map<String, Integer> indexes)
             throws RowConversionException {
         String type = value(fields, indexes, "type");
+        if (type != null) type = type.toUpperCase(Locale.ROOT);
+
         String amountText = value(fields, indexes, "amount");
         String dateText = value(fields, indexes, "date");
         String description = indexes.containsKey("description")
                 ? fields.get(indexes.get("description"))
                 : null;
-        String categoryText = value(fields, indexes, "categoryid");
 
         Double amount = null;
         if (amountText != null) {
@@ -249,17 +183,8 @@ public class TransferCsvImportService {
             }
         }
 
-        Integer categoryId = null;
-        if (categoryText != null) {
-            try {
-                categoryId = Integer.valueOf(categoryText);
-            } catch (NumberFormatException exception) {
-                throw new RowConversionException(ErrorCode.TRANSACTION_CATEGORY_ID_INVALID_FORMAT);
-            }
-        }
-
         if (description != null && description.isBlank()) description = null;
-        return new Transfer(null, type, amount, date, description, categoryId);
+        return new Transfer(null, type, amount, date, description, null);
     }
 
     private static String value(List<String> fields, Map<String, Integer> indexes, String name) {
@@ -276,9 +201,7 @@ public class TransferCsvImportService {
         if (errorCode != ErrorCode.OK) return errorCode;
         errorCode = TransferValidator.isDateValid(transfer.getDate());
         if (errorCode != ErrorCode.OK) return errorCode;
-        errorCode = TransferValidator.isDescriptionValid(transfer.getDescription());
-        if (errorCode != ErrorCode.OK) return errorCode;
-        return TransferValidator.isCategoryIDValid(transfer.getCategoryId());
+        return TransferValidator.isDescriptionValid(transfer.getDescription());
     }
 
     private static final class RowConversionException extends Exception {
@@ -286,6 +209,111 @@ public class TransferCsvImportService {
 
         private RowConversionException(ErrorCode errorCode) {
             this.errorCode = errorCode;
+        }
+    }
+
+    private static final class CsvParser implements AutoCloseable {
+        private final PushbackReader reader;
+        private int line = 1;
+        private int recordStartLine = 1;
+        private boolean firstCharacter = true;
+
+        private CsvParser(BufferedReader reader) {
+            this.reader = new PushbackReader(reader, 1);
+        }
+
+        private CsvRecord nextRecord() throws IOException, InvalidCsvException {
+            List<String> fields = new ArrayList<>();
+            StringBuilder field = new StringBuilder();
+            boolean inQuotes = false;
+            boolean afterClosingQuote = false;
+            boolean hasRecordContent = false;
+
+            while (true) {
+                int next = reader.read();
+                if (next == -1) {
+                    if (inQuotes) throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
+                    if (!hasRecordContent && fields.isEmpty() && field.isEmpty()) return null;
+                    fields.add(field.toString());
+                    CsvRecord record = new CsvRecord(recordStartLine, List.copyOf(fields));
+                    recordStartLine = line;
+                    return record;
+                }
+
+                char current = (char) next;
+                if (firstCharacter) {
+                    firstCharacter = false;
+                    if (current == '\uFEFF') continue;
+                }
+                hasRecordContent = true;
+
+                if (inQuotes) {
+                    if (current == '"') {
+                        int following = reader.read();
+                        if (following == '"') {
+                            field.append('"');
+                        } else {
+                            inQuotes = false;
+                            afterClosingQuote = true;
+                            if (following != -1) reader.unread(following);
+                        }
+                    } else {
+                        field.append(current);
+                        if (current == '\r' || current == '\n') {
+                            if (consumeLineEnding(current) == '\n') field.append('\n');
+                        }
+                    }
+                    continue;
+                }
+
+                if (afterClosingQuote) {
+                    if (current == ',') {
+                        fields.add(field.toString());
+                        field.setLength(0);
+                        afterClosingQuote = false;
+                    } else if (current == '\r' || current == '\n') {
+                        fields.add(field.toString());
+                        consumeLineEnding(current);
+                        CsvRecord record = new CsvRecord(recordStartLine, List.copyOf(fields));
+                        recordStartLine = line;
+                        return record;
+                    } else if (current != ' ' && current != '\t') {
+                        throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
+                    }
+                    continue;
+                }
+
+                if (current == '"') {
+                    if (!field.isEmpty()) throw new InvalidCsvException(ErrorCode.TRANSACTION_CSV_FILE_INVALID);
+                    inQuotes = true;
+                } else if (current == ',') {
+                    fields.add(field.toString());
+                    field.setLength(0);
+                } else if (current == '\r' || current == '\n') {
+                    fields.add(field.toString());
+                    consumeLineEnding(current);
+                    CsvRecord record = new CsvRecord(recordStartLine, List.copyOf(fields));
+                    recordStartLine = line;
+                    return record;
+                } else {
+                    field.append(current);
+                }
+            }
+        }
+
+        private int consumeLineEnding(char current) throws IOException {
+            int following = -1;
+            if (current == '\r') {
+                following = reader.read();
+                if (following != '\n' && following != -1) reader.unread(following);
+            }
+            line++;
+            return following;
+        }
+
+        @Override
+        public void close() throws IOException {
+            reader.close();
         }
     }
 }

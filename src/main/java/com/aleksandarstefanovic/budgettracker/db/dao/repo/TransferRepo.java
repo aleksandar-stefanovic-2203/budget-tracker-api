@@ -8,7 +8,10 @@ import java.sql.SQLException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.stereotype.Repository;
 
@@ -19,14 +22,15 @@ import com.aleksandarstefanovic.budgettracker.models.Transfer;
 
 @Repository
 public class TransferRepo {
+    private static final String INSERT_TRANSFER_SQL =
+            "INSERT INTO transfer (type, amount, date, description, category_id) VALUES (?, ?, ?, ?, ?)";
     private static final String SELECT_COLUMNS =
             "SELECT t.id, t.type, t.amount, t.date, t.description, t.category_id "
                     + "FROM transfer t JOIN category c ON c.id = t.category_id";
 
     public ErrorCode insertTransfer(Transfer transfer) {
         try (Connection connection = DB.source().getConnection();
-                PreparedStatement statement = connection.prepareStatement(
-                        "INSERT INTO transfer (type, amount, date, description, category_id) VALUES (?, ?, ?, ?, ?)")) {
+                PreparedStatement statement = connection.prepareStatement(INSERT_TRANSFER_SQL)) {
             ErrorCode errorCode = validateTransfer(transfer, false);
             if (errorCode != ErrorCode.OK) return errorCode;
 
@@ -36,6 +40,68 @@ public class TransferRepo {
         } catch (SQLException exception) {
             if (exception.getErrorCode() == 547) return ErrorCode.TRANSACTION_CATEGORY_DOES_NOT_EXIST;
             return ErrorCode.SERVICE_UNAVAILABLE;
+        }
+    }
+
+    public CsvImportSession openCsvImportSession() throws SQLException {
+        Connection connection = DB.source().getConnection();
+        try {
+            return new CsvImportSession(connection);
+        } catch (SQLException exception) {
+            try {
+                connection.close();
+            } catch (SQLException closeException) {
+                exception.addSuppressed(closeException);
+            }
+            throw exception;
+        }
+    }
+
+    public static final class CsvImportSession implements AutoCloseable {
+        private final Connection connection;
+        private final PreparedStatement insertStatement;
+        private final Map<String, Integer> categoryIds;
+
+        private CsvImportSession(Connection connection) throws SQLException {
+            this.connection = connection;
+            this.categoryIds = new HashMap<>();
+            try (PreparedStatement categoryStatement = connection.prepareStatement("SELECT id, name FROM category");
+                    ResultSet categories = categoryStatement.executeQuery()) {
+                while (categories.next()) {
+                    categoryIds.putIfAbsent(
+                            categories.getString("name").toLowerCase(Locale.ROOT),
+                            categories.getInt("id"));
+                }
+            }
+            this.insertStatement = connection.prepareStatement(INSERT_TRANSFER_SQL);
+        }
+
+        public ErrorCode insertTransfer(String categoryName, Transfer transfer) {
+            if (categoryName == null || categoryName.isBlank()) return ErrorCode.TRANSACTION_CATEGORY_IS_NULL;
+            Integer categoryId = categoryIds.get(categoryName.strip().toLowerCase(Locale.ROOT));
+            if (categoryId == null) return ErrorCode.TRANSACTION_CATEGORY_DOES_NOT_EXIST;
+
+            transfer.setCategoryId(categoryId);
+            ErrorCode errorCode = validateTransfer(transfer, false);
+            if (errorCode != ErrorCode.OK) return errorCode;
+
+            try {
+                bindTransfer(insertStatement, transfer, false);
+                insertStatement.executeUpdate();
+                return ErrorCode.OK;
+            } catch (SQLException exception) {
+                if (exception.getErrorCode() == 547) return ErrorCode.TRANSACTION_CATEGORY_DOES_NOT_EXIST;
+                return ErrorCode.SERVICE_UNAVAILABLE;
+            }
+        }
+
+        @Override
+        public void close() throws SQLException {
+            try {
+                insertStatement.close();
+            } finally {
+                connection.close();
+            }
         }
     }
 
