@@ -4,20 +4,30 @@ import java.sql.Date;
 
 public class Budget {
     // Fields
+    private Integer id;
     private Date month;
-    private int categoryId;
-    private double amount;
+    private Integer category_id;
+    private Double amount;
 
     // Constructors
     public Budget() {}
 
-    public Budget(Date month, int categoryId, double amount) {
+    public Budget(Integer id, Date month, Integer categoryId, Double amount) {
+        this.id = id;
         this.month = month;
-        this.categoryId = categoryId;
+        this.category_id = categoryId;
         this.amount = amount;
     }
 
     // Getters and Setters
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+    
     public Date getMonth() {
         return month;
     }
@@ -26,19 +36,19 @@ public class Budget {
         this.month = month;
     }
 
-    public int getCategoryId() {
-        return categoryId;
+    public Integer getCategory_id() {
+        return category_id;
     }
 
-    public void setCategoryId(int categoryId) {
-        this.categoryId = categoryId;
+    public void setCategory_id(Integer categoryId) {
+        this.category_id = categoryId;
     }
 
-    public double getAmount() {
+    public Double getAmount() {
         return amount;
     }
 
-    public void setAmount(double amount) {
+    public void setAmount(Double amount) {
         this.amount = amount;
     }
 }

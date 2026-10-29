@@ -29,3 +29,37 @@ Categories:
     Get:
         --- 1. Successful Get
         --- 2. Service unavaliable
+
+Budgets:
+    Insert:
+        1. Successful insert
+        2. Month not specified
+        3. Month incorrect format
+        4. Category not specified
+        5. Category doesn't exist
+        6. Amount not specified
+        7. Amount out of bounds
+        8. Budget already exists for given month and category
+        9. Service unavaliable
+        10. Amount too many decimal places
+    Update:
+        1. Successful update
+        2. Month not specified
+        3. Month incorrect format
+        4. Category not specified
+        5. Category doesn't exist
+        6. Amount not specified
+        7. Amount out of bounds
+        8. Budget already exists for given month and category
+        9. Service unavaliable
+        10. Budget doesn't exist
+        11. Amount too many decimal places
+
+    Delete:
+        1. Successful delete
+        2. Budget doesn't exist
+        3. Service unavaliable
+    Get for month:
+        1. Successful Get
+        2. Service unavaliable
+        3. Invalid month format

@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.aleksandarstefanovic.budgettracker.db.dao.*;
+import com.aleksandarstefanovic.budgettracker.db.dao.repo.CategoryRepo;
+import com.aleksandarstefanovic.budgettracker.db.dao.repo.CategoryRepo.Result;
 import com.aleksandarstefanovic.budgettracker.models.Category;
 
 
@@ -34,9 +36,9 @@ public class CategoryController {
 
     @GetMapping("")
     public ResponseEntity<List<Category>> getCategories() {
-        List<Category> categories = new CategoryRepo().getCategories();
+        Result result = new CategoryRepo().getCategories();
 
-        return APIResponse.fromList(categories);
+        return APIResponse.fromList(result.list(), result.errCode());
     }
     
 }

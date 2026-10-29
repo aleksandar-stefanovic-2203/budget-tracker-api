@@ -2,25 +2,25 @@ package com.aleksandarstefanovic.budgettracker.models;
 
 public class Category {
     // Fields
-    private int id;
+    private Integer id;
     private String name;
     private String color;
 
     // Constructors
     public Category() {}
 
-    public Category(int id, String name, String color) {
+    public Category(Integer id, String name, String color) {
         this.id = id;
         this.name = name;
         this.color = color;
     }
 
     // Getters and Setters
-    public int getId() {
+    public Integer getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(Integer id) {
         this.id = id;
     }
 

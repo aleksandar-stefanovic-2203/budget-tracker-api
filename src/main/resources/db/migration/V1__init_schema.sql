@@ -14,6 +14,7 @@ CREATE TABLE transfer (
 );
 
 CREATE TABLE budget (
+	id INT PRIMARY KEY IDENTITY(1, 1),
 	month DATE NOT NULL,
 	category_id INT NOT NULL,
 	amount DECIMAL(9, 2) NOT NULL
@@ -46,4 +47,4 @@ ADD
 		FOREIGN KEY (category_id) REFERENCES category(id)
 		ON UPDATE CASCADE ON DELETE CASCADE,
 	CONSTRAINT ck_budget_amount CHECK ( amount > 0 AND amount <= 1000000.00 ),
-	CONSTRAINT pk_budget_category_month PRIMARY KEY (category_id, month);
+	CONSTRAINT uq_budget_category_month UNIQUE (category_id, month);

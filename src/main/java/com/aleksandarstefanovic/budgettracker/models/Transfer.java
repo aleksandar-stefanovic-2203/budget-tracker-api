@@ -4,17 +4,17 @@ import java.sql.Date;
 
 public class Transfer {
     // Fields
-    private int id;
+    private Integer id;
     private String type;
-    private double amount;
+    private Double amount;
     private Date date;
     private String description;
-    private int categoryId;
+    private Integer categoryId;
 
     // Constructors
     public Transfer() {}
 
-    public Transfer(int id, String type, double amount, Date date, String description, int categoryId) {
+    public Transfer(Integer id, String type, Double amount, Date date, String description, Integer categoryId) {
         this.id = id;
         this.type = type;
         this.amount = amount;
@@ -24,11 +24,11 @@ public class Transfer {
     }
 
     // Getters and Setters
-    public int getId() {
+    public Integer getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(Integer id) {
         this.id = id;
     }
 
@@ -40,11 +40,11 @@ public class Transfer {
         this.type = type;
     }
 
-    public double getAmount() {
+    public Double getAmount() {
         return amount;
     }
 
-    public void setAmount(double amount) {
+    public void setAmount(Double amount) {
         this.amount = amount;
     }
 
@@ -64,11 +64,11 @@ public class Transfer {
         this.description = description;
     }
 
-    public int getCategoryId() {
+    public Integer getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(int categoryId) {
+    public void setCategoryId(Integer categoryId) {
         this.categoryId = categoryId;
     }
 }

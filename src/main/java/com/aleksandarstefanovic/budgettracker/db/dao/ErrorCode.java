@@ -4,6 +4,8 @@ import org.springframework.http.HttpStatus;
 
 public enum ErrorCode {
     // Category error codes
+    CATEGORY_ID_IS_NULL(HttpStatus.BAD_REQUEST, "Category ID is required."),
+    CATEGORY_ID_OUT_OF_BOUNDS(HttpStatus.BAD_REQUEST, "Category ID is out of bounds."),
     CATEGORY_NAME_IS_NULL(HttpStatus.BAD_REQUEST, "Category name is required."),
     CATEGORY_NAME_INVALID_LENGTH(HttpStatus.BAD_REQUEST, "Category name has invalid length."),
     CATEGORY_NAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "Category name already exists in the database."),
@@ -11,9 +13,22 @@ public enum ErrorCode {
     CATEGORY_COLOR_INVALID_FORMAT(HttpStatus.BAD_REQUEST, "Category color is in invalid format."),
     CATEGORY_DOES_NOT_EXIST(HttpStatus.BAD_REQUEST, "Category with the given ID doesn't exist."),
     CATEGORY_TRANSACTIONS_EXIST(HttpStatus.CONFLICT, "Category has transactions, therefore deletion was unsuccessful."),
-    CATEGORY_SQL_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "SQL error."),
 
-    OK(HttpStatus.OK, "Request finished successfully.");
+    // Budget error codes
+    BUDGET_ID_IS_NULL(HttpStatus.BAD_REQUEST, "Budget ID is required."),
+    BUDGET_ID_OUT_OF_BOUNDS(HttpStatus.BAD_REQUEST, "Budget ID is out of bounds."),
+    BUDGET_MONTH_IS_NULL(HttpStatus.BAD_REQUEST, "Budget month is required."),
+    BUDGET_MONTH_INCORRECT_FORMAT(HttpStatus.BAD_REQUEST, "Budget month is in incorrect format. Correct format is YYYY-MM-01 (first day of the month)."),
+    BUDGET_CATEGORY_IS_NULL(HttpStatus.BAD_REQUEST, "Budget category is required."),
+    BUDGET_CATEGORY_DOES_NOT_EXIST(HttpStatus.UNPROCESSABLE_CONTENT, "Budget category doesn't exist in the database."),
+    BUDGET_AMOUNT_IS_NULL(HttpStatus.BAD_REQUEST, "Budget amount is required."),
+    BUDGET_AMOUNT_OUT_OF_BOUNDS(HttpStatus.BAD_REQUEST, "Budget amount is out of bounds."),
+    BUDGET_AMOUNT_INVALID_DECIMAL_PLACES(HttpStatus.BAD_REQUEST, "Budget amount contains too many decimal places."),
+    BUDGET_EXISTS(HttpStatus.CONFLICT, "Budget already exists for the given month and category."),
+    BUDGET_DOES_NOT_EXIST(HttpStatus.BAD_REQUEST, "Budget with the given ID doesn't exist."),
+
+    OK(HttpStatus.OK, "Request finished successfully."),
+    SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Service is not avaliable at the moment.");
 
     private final HttpStatus status;
     private final String description;

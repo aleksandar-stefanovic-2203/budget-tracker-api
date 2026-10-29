@@ -1,10 +1,12 @@
-package com.aleksandarstefanovic.budgettracker.db.dao;
+package com.aleksandarstefanovic.budgettracker.db.dao.repo;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.aleksandarstefanovic.budgettracker.db.DB;
+import com.aleksandarstefanovic.budgettracker.db.dao.ErrorCode;
+import com.aleksandarstefanovic.budgettracker.db.dao.validation.CategoryValidator;
 import com.aleksandarstefanovic.budgettracker.models.Category;
 
 public class CategoryRepo {
@@ -31,19 +33,22 @@ public class CategoryRepo {
         } catch (SQLException e) {
             if(e.getErrorCode() == 2627) return ErrorCode.CATEGORY_NAME_ALREADY_EXISTS;
 
-            return ErrorCode.CATEGORY_SQL_ERROR;
+            return ErrorCode.SERVICE_UNAVAILABLE;
         }
     }
 
     public ErrorCode updateCategory(Category category) {
         try(Connection conn = DB.source().getConnection();
             PreparedStatement stm = conn.prepareStatement("UPDATE category SET name = ?, color = ? WHERE id = ?")){
+                ErrorCode errCode = CategoryValidator.isCategoryIDValid(category.getId());
+                if(errCode != ErrorCode.OK) return errCode;
+                
                 if(category.getName() != null){
                     String strippedName = category.getName().strip();
                     category.setName(strippedName);
                 }
                 
-                ErrorCode errCode = CategoryValidator.isCategoryNameValid(category.getName());
+                errCode = CategoryValidator.isCategoryNameValid(category.getName());
                 if(errCode != ErrorCode.OK) return errCode;
 
                 errCode = CategoryValidator.isColorValid(category.getColor());
@@ -59,13 +64,16 @@ public class CategoryRepo {
         } catch (SQLException e) {
             if(e.getErrorCode() == 2627) return ErrorCode.CATEGORY_NAME_ALREADY_EXISTS;
 
-            return ErrorCode.CATEGORY_SQL_ERROR;
+            return ErrorCode.SERVICE_UNAVAILABLE;
         }
     }
 
-    public ErrorCode deleteCategory(int id) {
+    public ErrorCode deleteCategory(Integer id) {
         try(Connection conn = DB.source().getConnection();
             PreparedStatement stm = conn.prepareStatement("DELETE FROM category WHERE id = ?")){
+                ErrorCode errCode = CategoryValidator.isCategoryIDValid(id);
+                if(errCode != ErrorCode.OK) return errCode;
+
                 stm.setInt(1, id);
 
                 int rowCount = stm.executeUpdate();
@@ -73,11 +81,13 @@ public class CategoryRepo {
 
         } catch (SQLException e) {
             if(e.getErrorCode() == 547) return ErrorCode.CATEGORY_TRANSACTIONS_EXIST;
-            return ErrorCode.CATEGORY_SQL_ERROR;
+            return ErrorCode.SERVICE_UNAVAILABLE;
         }
     }
 
-    public List<Category> getCategories(){
+    public record Result(List<Category> list, ErrorCode errCode) {}
+
+    public Result getCategories(){
         try(Connection con = DB.source().getConnection();
             PreparedStatement stm = con.prepareStatement("SELECT * FROM category ORDER BY name")){            
 
@@ -88,10 +98,10 @@ public class CategoryRepo {
                 categories.add(new Category(rs.getInt("id"), rs.getString("name"), rs.getString("color")));
             }
 
-            return categories;
+            return new Result(categories, ErrorCode.OK);
 
         } catch (SQLException e){
-            return null;
+            return new Result(null, ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
 }
