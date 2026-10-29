@@ -44,6 +44,12 @@ public enum ErrorCode {
     TRANSACTION_PAGE_SIZE_INVALID(HttpStatus.BAD_REQUEST, "Page size must be between 1 and 100."),
     TRANSACTION_DATE_RANGE_INVALID(HttpStatus.BAD_REQUEST, "Start date must not be after end date."),
     TRANSACTION_CATEGORY_NAME_INVALID_LENGTH(HttpStatus.BAD_REQUEST, "Category name filter cannot exceed 30 characters."),
+    TRANSACTION_AMOUNT_INVALID_FORMAT(HttpStatus.BAD_REQUEST, "Transaction amount must be a valid number."),
+    TRANSACTION_DATE_INVALID_FORMAT(HttpStatus.BAD_REQUEST, "Transaction date must use YYYY-MM-DD format."),
+    TRANSACTION_CATEGORY_ID_INVALID_FORMAT(HttpStatus.BAD_REQUEST, "Transaction category ID must be a valid integer."),
+    TRANSACTION_CSV_FILE_INVALID(HttpStatus.BAD_REQUEST, "CSV file is empty, malformed, or has an invalid header."),
+    TRANSACTION_CSV_FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "CSV file cannot exceed 5 MB."),
+    TRANSACTION_CSV_ROW_INVALID(HttpStatus.BAD_REQUEST, "CSV row does not match the header column count."),
 
     OK(HttpStatus.OK, "Request finished successfully."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Service is not avaliable at the moment.");

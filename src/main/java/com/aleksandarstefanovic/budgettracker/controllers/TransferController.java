@@ -1,9 +1,12 @@
 package com.aleksandarstefanovic.budgettracker.controllers;
 
+import java.io.IOException;
 import java.sql.Date;
 import java.util.List;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aleksandarstefanovic.budgettracker.db.dao.ErrorCode;
@@ -20,20 +24,36 @@ import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo;
 import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo.Result;
 import com.aleksandarstefanovic.budgettracker.db.dao.repo.TransferRepo.SingleResult;
 import com.aleksandarstefanovic.budgettracker.models.Transfer;
+import com.aleksandarstefanovic.budgettracker.services.TransferCsvImportService;
+import com.aleksandarstefanovic.budgettracker.services.TransferCsvImportService.ImportReport;
+import com.aleksandarstefanovic.budgettracker.services.TransferCsvImportService.InvalidCsvException;
 
 @RestController
 @RequestMapping("/transactions")
 @CrossOrigin(origins = "http://localhost:8080/")
 public class TransferController {
     private final TransferRepo transferRepo;
+    private final TransferCsvImportService csvImportService;
 
-    public TransferController(TransferRepo transferRepo) {
+    public TransferController(TransferRepo transferRepo, TransferCsvImportService csvImportService) {
         this.transferRepo = transferRepo;
+        this.csvImportService = csvImportService;
     }
 
     @PostMapping("/insertTransaction")
     public ResponseEntity<String> insertTransaction(@RequestBody Transfer transfer) {
         return APIResponse.fromErrorCode(transferRepo.insertTransfer(transfer));
+    }
+
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> importTransactions(@RequestPart("file") MultipartFile file) throws IOException {
+        try {
+            ImportReport report = csvImportService.importTransactions(file);
+            return ResponseEntity.ok(report);
+        } catch (InvalidCsvException exception) {
+            return ResponseEntity.status(exception.getErrorCode().getStatus())
+                    .body(new CsvImportError(exception.getErrorCode().name(), exception.getMessage()));
+        }
     }
 
     @PutMapping("/updateTransaction")
@@ -71,4 +91,6 @@ public class TransferController {
         List<Transfer> transfers = result.list();
         return ResponseEntity.ok(transfers);
     }
+
+    public record CsvImportError(String code, String message) {}
 }
