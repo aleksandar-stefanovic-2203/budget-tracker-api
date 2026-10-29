@@ -4,11 +4,14 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.stereotype.Repository;
+
 import com.aleksandarstefanovic.budgettracker.db.DB;
 import com.aleksandarstefanovic.budgettracker.db.dao.ErrorCode;
 import com.aleksandarstefanovic.budgettracker.db.dao.validation.CategoryValidator;
 import com.aleksandarstefanovic.budgettracker.models.Category;
 
+@Repository
 public class CategoryRepo {
     public ErrorCode insertCategory(Category category) {
         try(Connection conn = DB.source().getConnection();

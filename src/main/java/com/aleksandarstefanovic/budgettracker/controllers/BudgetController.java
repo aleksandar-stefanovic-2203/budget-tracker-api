@@ -15,28 +15,34 @@ import com.aleksandarstefanovic.budgettracker.models.Budget;
 @RequestMapping("/budgets")
 @CrossOrigin(origins = "http://localhost:8080/")
 public class BudgetController {
+
+    private final BudgetRepo budgetRepo;
+
+    public BudgetController(BudgetRepo budgetRepo) {
+        this.budgetRepo = budgetRepo;
+    }
     
     @PostMapping("/insertBudget")
     public ResponseEntity<String> insertBudget(@RequestBody Budget budget) {
-        ErrorCode errCode = new BudgetRepo().insertBudget(budget);
+        ErrorCode errCode = budgetRepo.insertBudget(budget);
         return APIResponse.fromErrorCode(errCode);
     }
 
     @PutMapping("/updateBudget")
     public ResponseEntity<String> updateBudget(@RequestBody Budget budget) {
-        ErrorCode errCode = new BudgetRepo().updateBudget(budget);
+        ErrorCode errCode = budgetRepo.updateBudget(budget);
         return APIResponse.fromErrorCode(errCode);
     }
 
     @DeleteMapping("/deleteBudget/{id}")
     public ResponseEntity<String> deleteCategory(@PathVariable Integer id) {
-        ErrorCode errCode = new BudgetRepo().deleteBudget(id);
+        ErrorCode errCode = budgetRepo.deleteBudget(id);
         return APIResponse.fromErrorCode(errCode);
     }
 
     @GetMapping("")
     public ResponseEntity<List<Budget>> getCategories(@RequestParam Date month) {
-        Result result = new BudgetRepo().getBudgetByMonth(month);
+        Result result = budgetRepo.getBudgetByMonth(month);
 
         return APIResponse.fromList(result.list(), result.errCode());
     }

@@ -4,13 +4,14 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Repository;
 
 import com.aleksandarstefanovic.budgettracker.db.DB;
 import com.aleksandarstefanovic.budgettracker.db.dao.ErrorCode;
 import com.aleksandarstefanovic.budgettracker.db.dao.validation.BudgetValidator;
 import com.aleksandarstefanovic.budgettracker.models.Budget;
 
+@Repository
 public class BudgetRepo {
     public ErrorCode insertBudget(Budget budget) {
         try(Connection conn = DB.source().getConnection();
